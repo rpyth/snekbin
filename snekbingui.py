@@ -388,11 +388,7 @@ class GUI(TkinterDnD.Tk):
         r = self.s.get(url)
         self.history = []
         if r.status_code == 200:
-            with open("dirs.sd", 'wb') as f:
-                r.raw.decode_content = True
-                f.write(r.content)
-            with open("dirs.sd","rb") as f:
-                d = bytes_to_dict(f.read())
+            d = bytes_to_dict(decompress(r.content))
             self.history = d["dirs"].split(";")
             self.path_box.configure(values = self.history)
 
@@ -550,11 +546,7 @@ class Element(ttk.Frame):
             r.raw.decode_content = True
             d = bytes_to_dict(decompress(r.content))
             if d.get("big") is None:
-                with open("dirs.sd", 'wb') as f:
-                    r.raw.decode_content = True
-                    f.write(decompress(r.content))
-                with open("dirs.sd","rb") as f:
-                    d = bytes_to_dict(f.read())
+                d = bytes_to_dict(decompress(r.content))
                 if True in [self.fname.lower().endswith(ext) for ext in images]:
                     #d["file"].save(path)
                     with open(path, "wb") as f:
