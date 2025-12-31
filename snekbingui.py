@@ -388,7 +388,8 @@ class GUI(TkinterDnD.Tk):
         r = self.s.get(url)
         self.history = []
         if r.status_code == 200:
-            d = bytes_to_dict(decompress(r.content))
+            r.raw.decode_content = True
+            d = bytes_to_dict(r.content)
             self.history = d["dirs"].split(";")
             self.path_box.configure(values = self.history)
 
