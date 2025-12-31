@@ -305,10 +305,14 @@ def from_folder_search(path, user, password, what, how, cdb = None):
     if os.path.exists(f"{user}.login"):
         if hashify(read(f"{user}.login"))==password:
             with shelve.open(link_db) as ldb:
-                pathlets = path.replace("~/", f"/{user}/").split("/")[1:-1]
-                dictionary = {**ldb}
-                for pathlet in pathlets:
-                    dictionary = dictionary[pathlet]
+                if path == "~/":
+                    dictionary = {**ldb}  # Root is the entire shelve dict
+                    pathlets = []
+                else:
+                    pathlets = path.replace("~/", f"/{user}/").split("/")[1:-1]
+                    dictionary = {**ldb}
+                    for pathlet in pathlets:
+                        dictionary = dictionary[pathlet]
             allfiles = dict()
             if cdb is None:
                 with shelve.open(content_db) as cdb:
@@ -327,8 +331,9 @@ def from_folder_search(path, user, password, what, how, cdb = None):
                             p = "/".join([""]+pathlets+[key]).replace(f"/{user}/", "~/",1)
                             allfiles[p] = dictionary.get(key)
                     else:
-                        parent = "/".join([""]+pathlets+[key]).replace(f"/{user}/", "~/",1)+"/"
-                        allfiles = {**allfiles, **from_folder_search(parent, user, password, what, how, cdb)}
+                        if isinstance(key, str):
+                            parent = "/".join([""]+pathlets+[key]).replace(f"/{user}/", "~/",1)+"/"
+                            allfiles = {**allfiles, **from_folder_search(parent, user, password, what, how, cdb)}
 
             return allfiles
 
