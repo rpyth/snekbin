@@ -393,6 +393,29 @@ class GUI(TkinterDnD.Tk):
             self.history = d["dirs"].split(";")
             self.path_box.configure(values = self.history)
 
+    def move_element(self, event = None):
+        l = [("<choice>", "Folder", self.history)]
+        d = get_dict(self, l)
+        #d["folder"] = d["folder"].replace("~/", f"/{self.user}/", 1)
+        d["target"] = d.pop("folder").replace("~/", f"/{self.user}/", 1)
+        req = compress(dict_to_bytes(d))
+        r = self.s.post(f"{self.server}/{self.user}/{self.password}/search", files = {"file": req})
+        if r.status_code == 200:
+            self.text.config(state = NORMAL)
+            self.text.delete("1.0", END)
+            self.var.set(f"Search: {d.get('pattern')}")
+            r.raw.decode_content = True
+            d = bytes_to_dict(decompress(r.content))
+            for key in list(d.keys()):
+                self.text.config(state = NORMAL)
+                folder, value = key.rsplit("/",1)[0]+"/", d[key]
+                print(key, value)
+                win = Element(self.text, value, key.rsplit("/",1)[-1], folder)
+                self.text.window_create(END, window = win)
+                self.text.tag_add("centered","1.0",END)
+                self.update()
+                self.text.config(state = DISABLED)
+
     def test(self):
         url = f"{self.server}/{self.user}/{self.password}/test"
         try:
@@ -437,6 +460,7 @@ class Element(ttk.Frame):
         self.menu.add_command(label = "Save As", command = self.save)
         self.menu.add_command(label = "Delete", command = self.delete)
         self.menu.add_command(label = "Rename", command = self.rename)
+        self.menu.add_command(label = "Move", command = self.move_element)
         self.menu.add_command(label = "Share", command = self.share)
         self.menu.add_command(label = "Unshare", command = self.unshare)
         if not folder is None:
@@ -491,6 +515,18 @@ class Element(ttk.Frame):
             r = self.s.get(url, files = to_upload)
             if r.status_code == 200:
                 gui.update_folder3()
+
+    def move_element(self):
+        gui = self.master.master.master
+        l = [("<choice>", "Folder", gui.history)]
+        d = get_dict(gui, l)
+        #d["folder"] = d["folder"].replace("~/", f"/{self.user}/", 1)
+        d["target"] = d.pop("folder").replace("~/", f"/{gui.user}/", 1)+self.fname
+        d["source"] = gui.var.get().replace("~/", f"/{gui.user}/", 1)+self.fname
+        req = compress(dict_to_bytes(d))
+        r = self.s.post(f"{gui.server}/{gui.user}/{gui.password}/move", files = {"file": req})
+        if r.status_code == 200:
+            gui.update_folder3()
 
     def open_folder(self):
         gui = self.master.master.master

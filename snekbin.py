@@ -166,29 +166,53 @@ def count_ids(d, id_, summa):
                 summa += count_ids(d.get(key), id_, 0)
     return summa
 
-def remove_folder(user, password, folder):
+def remove_folder(user, password, folder, ldb = None):
     link_db = f"{user}/links"
     content_db = f"{user}/content"
     if os.path.exists(f"{user}.login"):
         if hashify(read(f"{user}.login"))==password:
-            with shelve.open(link_db) as ldb:
+            if ldb is None:
+                with shelve.open(link_db) as ldb:
+                    pathlets = folder.replace("~/", f"/{user}/").split("/")[1:-1]
+                    dictionary = {**ldb}
+                    for pathlet in pathlets:
+                        dictionary = dictionary[pathlet]
+                    for fname in list(dictionary.keys()):
+                        if isinstance(dictionary.get(fname), int):
+                            remove_file(user, password, folder+fname, ldb)
+                        else:
+                            remove_folder(user, password, folder+fname+"/", ldb)
+                            ldb.update(del_addr(dict(ldb), pathlets))
+            else:
                 pathlets = folder.replace("~/", f"/{user}/").split("/")[1:-1]
                 dictionary = {**ldb}
                 for pathlet in pathlets:
                     dictionary = dictionary[pathlet]
                 for fname in list(dictionary.keys()):
                     if isinstance(dictionary.get(fname), int):
-                        remove_file(user, password, folder+fname)
+                        remove_file(user, password, folder+fname, ldb)
                     else:
-                        remove_folder(user, password, folder+fname+"/")
+                        remove_folder(user, password, folder+fname+"/", ldb)
                         ldb.update(del_addr(dict(ldb), pathlets))
 
-def remove_file(user, password, path):
+def remove_file(user, password, path, ldb = None):
     link_db = f"{user}/links"
     content_db = f"{user}/content"
     if os.path.exists(f"{user}.login"):
         if hashify(read(f"{user}.login"))==password:
-            with shelve.open(link_db) as ldb:
+            if ldb is None:
+                with shelve.open(link_db) as ldb:
+                    pathlets = path.replace("~/", f"/{user}/").split("/")[1:]
+                    dictionary = {**ldb}
+                    for pathlet in pathlets:
+                        dictionary = dictionary[pathlet]
+                    id_ = dictionary
+                    id_count = count_ids(dict(ldb), id_, 0)
+                    recursive_del(ldb, id_)
+                    if id_count==1:
+                        with shelve.open(content_db) as cdb:
+                            cdb.pop(str(id_))
+            else:
                 pathlets = path.replace("~/", f"/{user}/").split("/")[1:]
                 dictionary = {**ldb}
                 for pathlet in pathlets:
@@ -246,6 +270,26 @@ def obtain_id(dictionary, pathlets):
         return obtain_id(dictionary[pathlets[0]], pathlets[1:])
     else:
         return dictionary[pathlets[0]]
+
+def move_element_secure(p, t, user, password):
+    link_db = f"{user}/links"
+    content_db = f"{user}/content"
+    if os.path.exists(f"{user}.login"):
+        if hashify(read(f"{user}.login"))==password:
+            with shelve.open(link_db) as ldb:
+                #move_element(ldb, p, t)
+                id_ = obtain_id(ldb, p)
+                recent = add_id(ldb, t, id_)
+                ldb.update(recent)
+                ldb.update(del_addr(ldb, p))
+
+def move_element(dictionary_og, pathlets, targets):
+    dictionary = dict(dictionary_og)
+    while len(pathlets)>1:
+        p = pathlets.pop(0)
+        dictionary = dictionary.get(p)
+    recent = add_id(dictionary_og, targets, dictionary)
+    dictionary_og.update(recent)
 
 def all_dirs(dictionary, dir_list, base):
     for key in list(dictionary.keys()):
@@ -901,6 +945,12 @@ def communication_manager(user, password, action):
                 as_attachment=True, 
                 download_name="res.sd",
                 )
+        case "move":
+            d = bytes_to_dict(decompress(request.files.get("file").read()))
+            folder, folder2 = d.get("source"), d.get("target")
+            pathlets = folder.replace("~/", f"/{user}/").split("/")[1:]
+            targets = folder2.replace("~/", f"/{user}/").split("/")[1:]
+            move_element_secure(pathlets, targets, user, password)
         
     return "End"
 
