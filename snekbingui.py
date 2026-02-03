@@ -47,6 +47,92 @@ class Progress(Toplevel):
         self.geometry("300x25")
         self.resizable(True, False)
 
+class TextEditor(Toplevel):
+    def __init__(self, master, file):
+        super().__init__(master)
+        self.file = file
+        self.text = ScrolledText(self, relief = FLAT, font = ("Courier New", 16), width = 25, height = 10)
+        self.text.pack(fill = "both", expand = True)
+        self.gui = master
+        self.dir = self.gui.var.get()
+        self.title(f"SnekBin Editor [{self.file}]")
+
+        self.menubar = Menu(self)
+        self.filemenu = Menu(self.menubar, tearoff=0)
+        self.filemenu.add_command(label="Save", command=self.upload, accelerator = "Ctrl+S")
+        self.menubar.add_cascade(label="File", menu=self.filemenu)
+        self.config(menu = self.menubar)
+
+        self.download()
+        self.bind("<Control-s>", lambda e: self.upload())
+
+    def upload(self):
+        path = self.dir.replace("~/", f"/{self.gui.user}/", 1)
+        d = {"folder": path}
+        d["files"] = dict()
+        results = [self.file] # askopenfilenames()
+        for file in results:
+            d["files"][os.path.basename(file)] = bytes(self.text.get("1.0", "end-1c"), encoding = "utf-8")#open(file, "rb").read()
+        req = compress(dict_to_bytes(d))
+        if len(req)>1024**2*2:
+            self.gui.big_upload(req)
+        else:
+            r = self.gui.s.post(f"{self.gui.server}/{self.gui.user}/{self.gui.password}/save", files = {"file": req})
+
+        # self.update_folder3()
+
+    def download(self):
+        url = f"{self.gui.server}/{self.gui.user}/{self.gui.password}/getfile"
+        to_upload = {"file": compress(dict_to_bytes({"dir": self.dir.replace("~/", f"/{self.gui.user}/", 1), "file": os.path.basename(self.file)}))}
+        r = self.gui.s.get(url, files = to_upload)
+
+        if r.status_code == 200:
+            r.raw.decode_content = True
+            d = bytes_to_dict(decompress(r.content))
+            if d.get("big") is None:
+                d = bytes_to_dict(decompress(r.content))
+                self.text.delete("1.0", "end")
+                self.text.insert("1.0", str(d["file"], encoding = "utf-8"))
+                return
+                if True in [self.fname.lower().endswith(ext) for ext in images]:
+                    #d["file"].save(path)
+                    with open(path, "wb") as f:
+                        f.write(d["file"])
+                elif self.thing == "[...]":
+                    pass#TODO: add error popup
+                else:
+                    ext = self.fname.rsplit(".",1)[-1]
+                    fname = f"temp-{randint(0,1000)}.{ext}"
+                    #with open(path, "wb") as f:
+                    #    f.write(d["file"])
+            else:
+                b = d["file"]
+                
+                p = Progress(self.gui)
+                
+                url = f"{self.gui.server}/{self.gui.user}/{self.gui.password}/getbigfile"
+                is_big = maximal = d.get("big")
+                n = 0
+                while not is_big is None:
+                    to_upload = {"file": compress(dict_to_bytes({"dir": self.dir.replace("~/", f"/{gui.user}/", 1),
+                                                                 "file": os.path.basename(self.file),
+                                                                 "partition": n}))}
+                    
+                    r = self.s.get(url, files = to_upload)
+                    r.raw.decode_content = True
+                    d = bytes_to_dict(decompress(r.content))
+                    b+=d["file"]
+                    is_big = d.get("big")
+                    n+=1
+                    p.value.set(100*n/maximal)
+                    gui.update()
+                p.destroy()
+
+                #with open(path, "wb") as f:
+                #    f.write(b)
+                self.text.delete("1.0", "end")
+                self.text.insert("1.0", str(b, encoding = "utf-8"))
+
 class GUI(TkinterDnD.Tk):
     def __init__(self):
         super().__init__()
@@ -463,6 +549,7 @@ class Element(ttk.Frame):
         self.menu.add_command(label = "Move", command = self.move_element)
         self.menu.add_command(label = "Share", command = self.share)
         self.menu.add_command(label = "Unshare", command = self.unshare)
+        self.menu.add_command(label = "Edit As Text", command = self.text_edit)
         if not folder is None:
             self.menu.add_command(label = "Open Folder", command = self.open_folder)
             self.folder = folder
@@ -489,6 +576,12 @@ class Element(ttk.Frame):
             self.image = thing.copy()
             self.tkimage = ImageTk.PhotoImage(self.image)
             self.button.config(image = self.tkimage)
+
+    def text_edit(self):
+        if self.thing == "[...]":
+            showerror("Saving Error", "Can't edit a FOLDER.")
+            return
+        editor = TextEditor(self.master.master.master, self.fname)
 
     def rename(self):
         gui = self.master.master.master
