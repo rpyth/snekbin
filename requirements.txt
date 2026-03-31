@@ -1,0 +1,8 @@
+numpy
+opencv-python-headless
+pillow
+PyAudio
+PyYAML
+requests
+sv_ttk
+tkinterdnd2

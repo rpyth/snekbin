@@ -823,4 +823,15 @@ class Tip(Hovertip):
 
 if __name__=="__main__":
     freeze_support()
+    import ctypes
+    # let's enable dpi awareness on win below:
+    try:
+        # Windows 8.1 and later
+        ctypes.windll.shcore.SetProcessDpiAwareness(2) 
+    except AttributeError:
+        try:
+            # Windows 7
+            ctypes.windll.user32.SetProcessDPIAware()
+        except AttributeError:
+            pass
     gui = GUI()
