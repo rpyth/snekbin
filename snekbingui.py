@@ -183,6 +183,7 @@ class GUI(TkinterDnD.Tk):
         self.menu = Menu(self, tearoff = 0)
         self.menu.add_command(label = "Create Folder", command = self.create_folder)
         self.menu.add_command(label = "Upload Files", command = self.upload)
+        self.menu.add_command(label = "Upload Folder", command = self.upload_folder)
         self.text.bind("<Button-3>", self.popup)
         #rcm end
         #top bar start
@@ -462,6 +463,26 @@ class GUI(TkinterDnD.Tk):
         for file in results:
             d["files"][os.path.basename(file)] = open(file, "rb").read()
         req = compress(dict_to_bytes(d))
+        if len(req)>1024**2*2:
+            self.big_upload(req)
+        else:
+            r = self.s.post(f"{self.server}/{self.user}/{self.password}/save", files = {"file": req})
+
+        self.update_folder3()
+
+    def upload_folder(self):
+        path = self.var.get().replace("~/", f"/{self.user}/", 1)
+        d = {"folder": path}
+        d["files"] = dict()
+        root = askdirectory().replace("\\","/")
+        for parent, dirs, files in os.walk(root):
+            parent = parent.replace("\\","/")
+            prefix = len(root.split("/"))
+            for p in files:
+                rel = os.path.join("/".join(parent.split("/")[prefix:]), p).replace("\\","/")
+                d["files"][rel] = open(os.path.join(parent, p), "rb").read()
+        req = compress(dict_to_bytes(d))
+
         if len(req)>1024**2*2:
             self.big_upload(req)
         else:
